@@ -1,0 +1,206 @@
+#
+# <https://github.com/KFERMercer/OpenWrt-CI>
+#
+# Copyright (C) 2019 P3TERX
+#
+# Copyright (C) 2020 KFERMercer
+#
+name: LEDE-X86
+
+on:
+  watch:
+    types: started
+  push:
+    branches: ["master"]
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build_openwrt:
+    name: Build OpenWrt Firmware
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Space cleanup and Initialization environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          docker rmi `docker images -q`
+          sudo -E rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/apt/sources.list.d /usr/local/lib/android
+          sudo -E apt-mark hold grub-efi-amd64-signed
+          sudo -E apt update
+          sudo -E apt -y purge azure-cli* docker* ghc* zulu* llvm* firefox google* dotnet* powershell* openjdk* mysql* php* mongodb* dotnet* snap*
+          sudo -E apt -y full-upgrade
+          sudo -E apt -y install ack antlr3 aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+          sudo -E systemctl daemon-reload
+          sudo -E apt -y autoremove --purge
+          sudo -E apt clean
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+
+      - name: Checkout OpenWrt
+        uses: actions/checkout@v3
+
+      - name: Update feeds
+        run: |
+          sed -i 's/#src-git helloworld/src-git helloworld/g' ./feeds.conf.default
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Custom config
+        run: |
+          # 自定义基础配置
+          sed -i 's/192.168.1.1/10.24.0.10/g' package/base-files/files/bin/config_generate
+          sed -i 's/255.255.255.0/255.255.254.0/g' package/base-files/files/bin/config_generate
+          sed -i "s/hostname='OpenWrt'/hostname='LicsberLEDE'/g" package/base-files/files/bin/config_generate
+
+          # 扩容一下
+          echo 'CONFIG_TARGET_ROOTFS_PARTSIZE=1024' >> .config
+
+          # IPv6支持
+          echo 'CONFIG_PACKAGE_ipv6helper=y' >> .config
+          echo 'CONFIG_PACKAGE_ip6tables-extra=y' >> .config
+          echo 'CONFIG_PACKAGE_ip6tables-mod-nat=y' >> .config
+
+          # 比nohup更好用的后台运行
+          echo 'CONFIG_PACKAGE_screen=y' >> .config
+
+          # 全套Docker
+          echo 'CONFIG_PACKAGE_luci-app-dockerman=y' >> .config
+          echo 'CONFIG_PACKAGE_docker-compose=y' >> .config
+
+          # 不支持Python编程的路由器不是好路由器
+          echo 'CONFIG_PACKAGE_python3-pip=y' >> .config
+          echo 'CONFIG_PACKAGE_python3-requests=y' >> .config
+          echo 'CONFIG_PACKAGE_python3-speedtest-cli=y' >> .config
+
+          # Python都有了 那Go也得整上吧
+          echo 'CONFIG_PACKAGE_golang=y' >> .config
+
+          # 怎么能默认不支持cf的ddns呢
+          echo 'CONFIG_PACKAGE_ddns-scripts_cloudflare.com-v4=y' >> .config
+
+          # 花哨的图表最喜欢了
+          echo 'CONFIG_PACKAGE_luci-app-netdata=y' >> .config
+
+          # 很好用的64互相映射
+          echo 'CONFIG_PACKAGE_luci-app-socat=y' >> .config
+
+          # 你的路由炸啦~
+          echo 'CONFIG_PACKAGE_luci-app-serverchan=y' >> .config
+
+          # OVPN最好用 不接受反驳
+          echo 'CONFIG_PACKAGE_luci-app-openvpn-server=y' >> .config
+
+          # VXLAN也不错
+          echo 'CONFIG_PACKAGE_vxlan=y' >> .config
+
+          # PPPoSSH了解一下？
+          echo 'CONFIG_PACKAGE_pppossh=y' >> .config
+
+          # GRE得有吧
+          echo 'CONFIG_PACKAGE_gre=y' >> .config
+
+          # 再多个L2TP也不过分？
+          echo 'CONFIG_PACKAGE_xl2tpd=y' >> .config
+
+          # 蜂窝上网也得有
+          echo 'CONFIG_PACKAGE_comgt=y' >> .config
+
+          # 路由挂个机械盘不为过吧
+          echo 'CONFIG_PACKAGE_luci-app-hd-idle=y' >> .config
+
+          # 多拨可以不用但不能没有
+          echo 'CONFIG_PACKAGE_luci-app-mwan3=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-mwan3helper=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-syncdial=y' >> .config
+          
+          # rsync带上不过分
+          echo 'CONFIG_PACKAGE_rsync=y' >> .config
+          
+          # 路由器用5G当备份链路不过分吧
+          # 基础
+          echo 'CONFIG_PACKAGE_usb-modeswitch=y' >> .config
+          # NCM5
+          echo 'CONFIG_PACKAGE_kmod-usb-net-huawei-cdc-ncm=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-proto-ncm=y' >> .config
+          
+          echo 'CONFIG_PACKAGE_quectel-CM-5G=y' >> .config
+          
+          echo 'CONFIG_PACKAGE_kmod-mii=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-net=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-wdm=y' >> .config
+          
+          echo 'CONFIG_PACKAGE_uqmi=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-net-qmi-wwan=y' >> .config
+          
+          echo 'CONFIG_PACKAGE_kmod-usb-net-cdc-mbim=y' >> .config
+          
+          echo 'CONFIG_PACKAGE_umbim=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-serial-option=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-serial=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-serial-wwan=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-proto-qmi=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-usb-net-rndis=y' >> .config
+
+          # 没有限速的需求
+          echo '# CONFIG_PACKAGE_luci-app-accesscontrol is not set' >> .config
+
+          # 迅雷是个啥？
+          echo '# CONFIG_PACKAGE_luci-app-xlnetacc is not set' >> .config
+
+          # 不要监控网络流量（
+          echo '# CONFIG_PACKAGE_luci-app-nlbwmon is not set' >> .config
+
+          cat .config
+
+      - name: Generate configuration file
+        run: |
+          make defconfig
+          cat .config
+
+      - name: Show diff
+        run: ./scripts/diffconfig.sh
+
+      - name: Download packages
+        run: make download -j16
+
+      - name: Compile firmware
+        run: |
+          make -j$(nproc) || make -j1 V=s
+          echo "======================="
+          echo "Space usage:"
+          echo "======================="
+          df -h
+          echo "======================="
+          du -h --max-depth=1 ./ --exclude=build_dir --exclude=bin
+          du -h --max-depth=1 ./build_dir
+          du -h --max-depth=1 ./bin
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p ./artifact/package
+          mkdir -p ./artifact/buildinfo
+          rm -rf $(find ./bin/targets/ -type d -name "packages")
+          cp -rf $(find ./bin/packages/ -type f -name "*.ipk") ./artifact/package/
+          cp -rf $(find ./bin/targets/ -type f -name "*.buildinfo" -o -name "*.manifest") ./artifact/buildinfo/
+
+      - name: Upload buildinfo
+        uses: actions/upload-artifact@v3
+        with:
+          name: LicsberLEDE_buildinfo
+          path: ./artifact/buildinfo/
+
+      - name: Upload package
+        uses: actions/upload-artifact@v3
+        with:
+          name: LicsberLEDE_package
+          path: ./artifact/package/
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v3
+        with:
+          name: LicsberLEDE_firmware
+          path: ./bin/targets/
