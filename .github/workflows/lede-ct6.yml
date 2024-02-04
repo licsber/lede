@@ -56,7 +56,7 @@ jobs:
 
           echo 'CONFIG_TARGET_rockchip=y' >> .config
           echo 'CONFIG_TARGET_rockchip_armv8=y' >> .config
-          echo 'CONFIG_TARGET_MULTI_PROFILE=y' >> .config
+          echo 'CONFIG_TARGET_rockchip_armv8_DEVICE_friendlyarm_nanopi-r5s=y >> .config
 
       - name: Generate configuration file
         run: make defconfig
