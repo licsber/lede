@@ -5,11 +5,12 @@
 #
 # Copyright (C) 2020 KFERMercer
 #
-name: OpenWrt-CI
+name: LEDE
 
 on:
-  schedule:
-    - cron: 0 20 * * *
+  push:
+    branches: ["master"]
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
